@@ -1,0 +1,14 @@
+{
+  "name": "own-voice",
+  "displayName": "Own Voice",
+  "version": "0.1.0",
+  "description": "Build your own voice system from your messages, emails and calls, then write in your voice in any language. Ships only the system: your data stays on your machine.",
+  "author": {
+    "name": "Gabriele Partiti",
+    "url": "https://github.com/gabry-ts"
+  },
+  "homepage": "https://github.com/gabry-ts/own-voice",
+  "repository": "https://github.com/gabry-ts/own-voice",
+  "license": "MIT",
+  "keywords": ["writing", "voice", "style", "messages", "email", "multilingual", "privacy"]
+}

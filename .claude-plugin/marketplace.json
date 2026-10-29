@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "own-voice",
+  "description": "Write in your own voice, built from your own texts.",
+  "owner": {
+    "name": "Gabriele Partiti",
+    "url": "https://github.com/gabry-ts"
+  },
+  "plugins": [
+    {
+      "name": "own-voice",
+      "source": "./",
+      "description": "Build your own voice system from your messages, emails and calls, then write in your voice in any language. Ships only the system: your data stays on your machine.",
+      "category": "productivity",
+      "keywords": ["writing", "voice", "style", "messages", "email", "multilingual", "privacy"]
+    }
+  ]
+}
