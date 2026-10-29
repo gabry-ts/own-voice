@@ -1,0 +1,21 @@
+From: Alex Rivera <alex.rivera@example.com>
+To: Sam Lee <sam.lee@example.org>, Jo Park <jo@example.org>
+Subject: Fwd: R: Meeting notes
+Date: Fri, 15 Mar 2024 16:45:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+Notes attached below, call me on +44 7700 900123 if needed.
+
+-- 
+Alex Rivera
+Product Lead
+
+--b1
+Content-Type: text/html; charset=utf-8
+
+<p>Notes attached below.</p>
+--b1--
