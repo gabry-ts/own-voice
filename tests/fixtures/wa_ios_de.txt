@@ -1,0 +1,6 @@
+[12.03.24, 09:14:05] Jonas Weber: ‎Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt.
+[12.03.24, 09:14:40] Alex Rivera: Hallo Jonas, wie geht's?
+[13.03.24, 10:00:00] Jonas Weber: Gut, danke!
+[13.03.24, 10:01:00] Alex Rivera: ‎Bild weggelassen
+[13.03.24, 10:02:00] Alex Rivera: Diese Nachricht wurde gelöscht
+[13.03.24, 10:03:00] Alex Rivera: Bis morgen ‎<Diese Nachricht wurde bearbeitet>
