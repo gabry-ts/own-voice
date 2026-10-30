@@ -24,7 +24,7 @@ You build a voice system from the user's own texts so that the write skill can p
    - the names, addresses and speaker labels that are theirs (WhatsApp display names, email addresses, transcript labels);
    - which sources they have: WhatsApp exports (.zip or .txt), sent email as .mbox/.eml (Google Takeout, Thunderbird, Outlook export), Apple Mail (macOS only, reads the Sent mailboxes directly), call transcripts (.md/.txt or Kaiku folders), their own texts and posts (.txt/.md);
    - permission to create working files in `<data>`.
-4. Create `<data>/config.json` from `<root>/templates/config.json` with `languages` and `my_names` filled in, after approval.
+4. Create `<data>/config.json` from `<root>/templates/config.json` with `languages` and `my_names` filled in, after approval. Also create `<data>/raw`, `<data>/corpus`, `<data>/work` and `<data>/voice`.
 
 ## 2. Import
 
@@ -49,13 +49,25 @@ When an importer exits with code 2 it printed the authors or speakers it found: 
 ## 4. Registers
 
 1. Run `profile.py threads <data>/corpus/clean.jsonl --format markdown`.
-2. Propose registers from the data: group threads that share tone (lowercase starts, final punctuation, laughter, emoji, message length, openers) and audience. Give each a name, a one-line description of when it applies, its threads and, as fallback, its channels.
+2. Propose registers from the data: group threads that share tone (lowercase starts, final punctuation, laughter, emoji, message length, openers) and audience. Give each a name, a one-line description of when it applies, its threads and, as fallback, its channels. Each email subject counts as a thread: don't list them one by one, cover email with `channels: ["email"]` unless a group of subjects clearly has another tone.
    - Spoken (channel `spoken`) is always its own register; its sheet is used only for expressions marked transferable to writing.
    - Lectures, talks and trainings where the user monologues get their own register, used only for public posts.
    - If they write in more than one language, never mix languages in one register: split it per language (for example `work-en`, `work-de`), because measurements and the lexicon are per register.
 3. The user confirms, renames, merges or splits. Excluded threads go in no register.
 4. Ask once: should the sheets describe their raw voice, or a cleaned one (typos fixed, less slang, orderly messages, but still their gestures and rhythm)? And their stance on profanity per register (keep, soften, avoid).
-5. Save `registers`, `excluded_threads`, `desired_voice` and `profanity` in config, after approval.
+5. Save `registers`, `excluded_threads`, `desired_voice` and `profanity` in config, after approval. Use exactly this shape, because the scripts read it:
+
+   ```json
+   {
+     "registers": [
+       {"name": "friends", "description": "friends and family chats", "threads": ["Sam"], "channels": []},
+       {"name": "email", "description": "any email", "threads": [], "channels": ["email"]}
+     ],
+     "excluded_threads": ["Delivery bot"],
+     "desired_voice": "cleaned",
+     "profanity": {"friends": "soften", "email": "avoid"}
+   }
+   ```
 
 ## 5. Measure and read
 
@@ -78,9 +90,9 @@ Show each sheet, write it to a scratch file in `<data>/work/`, run `redact.py --
 ## 7. Lexicon
 
 1. For each language, write a candidate list to `<data>/work/candidates.txt`, one term per line: words and phrases typical of assistant-written text in that language (formal connectives, inflated verbs and adjectives, courtesy formulas, enthusiastic openers, wellbeing wishes, summarizing closers, hedges). Aim for 80 to 150 terms per language.
-2. Run `lexicon.py count --terms <data>/work/candidates.txt --corpus <data>/corpus/clean.jsonl --by channel --format markdown` (add `--accent-insensitive` when the user often skips accents).
-3. Terms they (almost) never write become the black list. Note channel differences: a term used in email but never in chat is black-listed for chat only.
-4. Find their substitute for each term: `lexicon.py top --corpus <data>/corpus/clean.jsonl --by channel --ngram 1|2|3 --format markdown`. Pair each black-listed term with what they actually write, with its count.
+2. Run `lexicon.py count --terms <data>/work/candidates.txt --corpus <data>/corpus/clean.jsonl --by register --config <data>/config.json --format markdown` (add `--accent-insensitive` when the user often skips accents).
+3. Terms they (almost) never write become the black list. Note register differences: a term used in email but never with friends is black-listed for friends only.
+4. Find their substitute for each term: `lexicon.py top --corpus <data>/corpus/clean.jsonl --by register --config <data>/config.json --ngram 1|2|3 --format markdown`. The most frequent single words are function words: look past them, and prefer `--ngram 2` and `3` for phrases. Pair each black-listed term with what they actually write, with its count.
 5. Fill `<root>/templates/lexicon.md`. "Check before copying" is the plain list of black-listed terms. When the spoken sheet and the lexicon disagree, the lexicon wins.
 6. After `redact.py --check` and approval, save `<data>/voice/lexicon.md` and `<data>/voice/blacklist.txt` (one term per line).
 

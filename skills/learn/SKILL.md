@@ -24,7 +24,7 @@ Pick the mode from the request. If unclear, ask which one.
 3. For each meaningful change write one short rule and one before -> after example, anonymized. Say whether it belongs to the register sheet or to the lexicon (a word they replaced, a term to black-list).
 4. Show the proposals. For each approved one:
    - register sheet: append under "## Author corrections" of `<data>/voice/<register>.md` a line `- YYYY-MM-DD: rule. Example: "before" -> "after"`;
-   - lexicon: add the term and its substitute to `<data>/voice/lexicon.md` (Black list table and "Check before copying") and a line to `<data>/voice/blacklist.txt`.
+   - lexicon: add the term and its substitute to `<data>/voice/lexicon.md` (Black list table, with `-` in the count cell until the next refresh measures it, and "Check before copying") and a line to `<data>/voice/blacklist.txt`.
 5. If a new correction contradicts an older one, show both and ask which to keep. Never drop one silently.
 
 ## B. Periodic refresh
@@ -39,7 +39,7 @@ Pick the mode from the request. If unclear, ask which one.
    Add `--append` for a second run into the same file. Use the names in `my_names`; when an importer exits with code 2, show the authors it printed and ask which are theirs.
 3. Hygiene on the new records, as at setup: `profile.py polished <data>/raw/new/*.jsonl`, the user picks what to drop, then write config `excluded_threads` to `<data>/work/excluded_threads.txt` and run `profile.py filter <data>/raw/new/*.jsonl --drop-indexes <i,...> --drop-threads <data>/work/excluded_threads.txt --before <ai_cutoff> --channels email,text,post --dedup --dedup-against <data>/corpus/*.jsonl --out <data>/corpus/clean-<today>.jsonl`. `--dedup-against` drops records already in the corpus, such as messages from the day of `last_import`.
 4. New threads: run `profile.py threads` on the new clean file and propose a register for each thread that is not in config. Save to config after approval.
-5. Re-measure on the whole corpus: `profile.py measure <data>/corpus/*.jsonl --group-by register --format json`, and `lexicon.py count --terms <data>/voice/blacklist.txt --corpus <data>/corpus/*.jsonl --by channel --format markdown` to see whether any black-listed term has become theirs.
+5. Re-measure on the whole corpus: `profile.py measure <data>/corpus/*.jsonl --group-by register --format json`, and `lexicon.py count --terms <data>/voice/blacklist.txt --corpus <data>/corpus/*.jsonl --by register --config <data>/config.json --format markdown` to see whether any black-listed term has become theirs.
 6. Propose a diff per sheet and for the lexicon: changed numbers, new or vanished traits with short quotes, reliability that changed with volume. Never touch "Author corrections": they still override the measurements.
 7. Apply only the approved parts. Then set `last_import` to today's date, after approval.
 8. Offer to delete `<data>/raw/new/` (only on explicit yes).

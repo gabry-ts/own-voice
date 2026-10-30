@@ -44,7 +44,7 @@ Fixed rules, always:
 - Not too polished. If the sheet says so, keep in chats their lowercase starts, short messages, no final period and their laughter tokens. Fix only the errors listed under "Errors to fix, not voice".
 - Match the length of the message received. Two lines get a short answer.
 - No assistant tics: enthusiastic openers, compliments on the question, wellbeing wishes, balanced lists of three, closing summaries, formulas they never use, bold or headings in chats.
-- Word check: run the draft through the black list and replace every hit with their substitute from the lexicon, or rephrase. Exit code 1 means hits.
+- Word check: run the draft through the black list and replace every hit with their substitute from the lexicon, or rephrase. Exit code 1 means hits. A hit on a term the lexicon's "Register differences" allows in this register is fine.
 
   ```bash
   python3 -I <root>/scripts/lexicon.py check --terms <data>/voice/blacklist.txt - <<'EOF'
@@ -65,7 +65,7 @@ Fixed rules, always:
    EOF
    ```
 
-- Chat replies with more than one idea: separate messages, one per bubble, with a blank line between them. React to what the other person said first, then the content.
+- Chat replies with more than one idea: separate messages, one per bubble, with a blank line between them. React to what the other person said first, then the content. The clipboard holds one block: copy it all and say once that the blank lines mark where to split when pasting. If they prefer, copy one bubble at a time each time they say "next".
 - Email: copy only the body; show the subject separately in chat.
 - One version only. When they ask for a change ("shorter", "softer"), rewrite and copy again.
 - Keep the last draft visible in the conversation: the learn skill compares it with what they actually sent. Mention once that they can paste what they sent to the learn skill.
