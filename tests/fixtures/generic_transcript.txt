@@ -1,0 +1,4 @@
+[00:01:00] Alex: First line of the call.
+continued on a second line.
+00:01:10 Jo: Plain timestamp format.
+Alex: No timestamp at all.
