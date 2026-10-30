@@ -153,12 +153,18 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="report findings, never values")
     args = ap.parse_args(argv)
     if args.check:
-        found = False
+        found = unreadable = False
         for path in args.files:
-            for line, kind in check_file(path):
+            try:
+                findings = check_file(path)
+            except OSError:
+                print("%s: cannot read" % path, file=sys.stderr)
+                unreadable = True
+                continue
+            for line, kind in findings:
                 found = True
                 print("%s:%d: %s" % ("<stdin>" if path == "-" else path, line, kind))
-        return 1 if found else 0
+        return 2 if unreadable else 1 if found else 0
     for path in args.files:
         sys.stdout.write(redact(_read(path)))
     return 0

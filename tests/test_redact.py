@@ -78,5 +78,17 @@ class RedactTests(unittest.TestCase):
         self.assertNotIn("hunter2secret", buf.getvalue())
 
 
+class CheckUnreadableTests(unittest.TestCase):
+    def test_missing_file_exits_2(self):
+        import tempfile
+        from contextlib import redirect_stderr
+        err = io.StringIO()
+        with tempfile.TemporaryDirectory() as d, redirect_stderr(err), redirect_stdout(io.StringIO()):
+            missing = str(Path(d) / "nope.txt")
+            code = redact.main(["--check", missing])
+        self.assertEqual(code, 2)
+        self.assertEqual(err.getvalue(), "%s: cannot read\n" % missing)
+
+
 if __name__ == "__main__":
     unittest.main()
