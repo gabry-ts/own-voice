@@ -3,6 +3,7 @@
   "my_names": [],
   "ai_cutoff": "2022-11-30",
   "registers": [],
+  "excluded_threads": [],
   "last_import": null,
   "desired_voice": null,
   "profanity": {}
