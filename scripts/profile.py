@@ -4,7 +4,7 @@
 Subcommands:
   measure   style metrics per group (register, thread, channel or all)
   polished  list own messages that look overly polished
-  filter    drop records by index, or by channel and date, into a clean corpus
+  filter    drop records by index, thread, duplicate, or channel and date, into a clean corpus
   threads   per-thread features to help group threads into registers
 
 Corpus files are JSONL, one record per message. Indexes are positions among the
@@ -408,6 +408,19 @@ def cmd_polished(args):
     return 0
 
 
+def load_thread_names(value):
+    path = Path(value).expanduser()
+    if path.is_file():
+        items = path.read_text(encoding="utf-8").splitlines()
+    else:
+        items = value.split(",")
+    return {x.strip() for x in items if x.strip()}
+
+
+def dedup_key(r):
+    return (r.get("source"), r.get("channel"), r.get("date"), r.get("thread"), r.get("text"))
+
+
 def cmd_filter(args):
     records = load_corpus(args.corpus)
     drop = set()
@@ -418,20 +431,37 @@ def cmd_filter(args):
             print("error: --drop-indexes must be comma separated integers", file=sys.stderr)
             return 2
     channels = {c.strip() for c in args.channels.split(",") if c.strip()} if args.channels else None
+    threads = load_thread_names(args.drop_threads) if args.drop_threads else set()
+    dedup = args.dedup or bool(args.dedup_against)
+    seen = {dedup_key(r) for r in load_corpus(args.dedup_against or [])}
+    dropped = Counter()
     kept = 0
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8") as fh:
         for idx, r in enumerate(records):
             if idx in drop:
+                dropped["index"] += 1
                 continue
             if args.before:
                 d = r.get("date")
                 if d and str(d)[:10] >= args.before[:10] and (channels is None or r.get("channel") in channels):
+                    dropped["before"] += 1
                     continue
+            if threads and str(r.get("thread") or "").strip() in threads:
+                dropped["thread"] += 1
+                continue
+            if dedup:
+                key = dedup_key(r)
+                if key in seen:
+                    dropped["duplicate"] += 1
+                    continue
+                seen.add(key)
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
             kept += 1
     print("kept {} of {} records -> {}".format(kept, len(records), out))
+    for reason in ("index", "before", "thread", "duplicate"):
+        print("dropped by {}: {}".format(reason, dropped[reason]))
     return 0
 
 
@@ -497,6 +527,11 @@ def build_parser():
     f.add_argument("--drop-indexes")
     f.add_argument("--before", help="drop records dated on/after this date (with --channels)")
     f.add_argument("--channels", help="comma separated; default all channels")
+    f.add_argument("--drop-threads", help="comma separated thread names, or a file with one per line")
+    f.add_argument("--dedup", action="store_true",
+                   help="drop records identical to an earlier one (source, channel, date, thread, text)")
+    f.add_argument("--dedup-against", nargs="+", metavar="FILE",
+                   help="files used only as already-seen records, not written (implies --dedup)")
     f.add_argument("--out", required=True)
     f.set_defaults(func=cmd_filter)
     t = sub.add_parser("threads", help="per-thread features")

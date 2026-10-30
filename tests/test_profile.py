@@ -82,6 +82,36 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(len(recs), 10)
             self.assertTrue(all(r["date"][:4] <= "2022" for r in recs if r["channel"] == "email"))
 
+    def test_filter_drop_threads(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = str(Path(d) / "c.jsonl")
+            _, text = run(["filter", CORPUS, "--drop-threads", " pals ,jp", "--out", out])
+            recs = prof.load_corpus([out])
+            self.assertFalse({"pals", "jp"} & {r["thread"] for r in recs})
+            self.assertIn("dropped by thread: ", text)
+            lst = Path(d) / "t.txt"
+            lst.write_text("jp\n\n boss \n")
+            run(["filter", CORPUS, "--drop-threads", str(lst), "--out", out])
+            threads = {r["thread"] for r in prof.load_corpus([out])}
+            self.assertFalse({"jp", "boss"} & threads)
+            self.assertIn("pals", threads)
+
+    def test_filter_dedup(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = str(Path(d) / "c.jsonl")
+            new = Path(d) / "new.jsonl"
+            extra = {"source": "x", "channel": "chat", "date": "2024-01-01", "thread": "t", "text": "fresh"}
+            new.write_text(Path(CORPUS).read_text(encoding="utf-8") + json.dumps(extra) + "\n")
+            total = len(prof.load_corpus([str(new)]))
+            _, text = run(["filter", CORPUS, str(new), "--dedup", "--out", out])
+            recs = prof.load_corpus([out])
+            self.assertEqual(len(recs), total)
+            self.assertEqual(recs[-1]["text"], "fresh")
+            self.assertIn("dropped by duplicate: 12", text)
+            _, text = run(["filter", str(new), "--dedup-against", CORPUS, "--out", out])
+            self.assertEqual([r["text"] for r in prof.load_corpus([out])], ["fresh"])
+            self.assertIn("dropped by duplicate: 12", text)
+
     def test_threads(self):
         code, out = run(["threads", CORPUS])
         data = json.loads(out)
