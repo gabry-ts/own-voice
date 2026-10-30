@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -63,6 +64,35 @@ class ParserTests(unittest.TestCase):
         self.assertIn("with timeout of 600 seconds", am.DATES_SCRIPT)
         self.assertIn("with timeout of 600 seconds", am.FETCH_SCRIPT)
         self.assertNotIn("whose", am.DATES_SCRIPT + am.FETCH_SCRIPT)
+
+
+class FinalizeTests(unittest.TestCase):
+    def test_replace_removes_partial(self):
+        with tempfile.TemporaryDirectory() as d:
+            out, part = Path(d) / "o.jsonl", Path(d) / "o.jsonl.partial"
+            out.write_text("old\n")
+            part.write_text("new\n")
+            self.assertTrue(am.finalize_output(part, out, 1, False))
+            self.assertEqual(out.read_text(), "new\n")
+            self.assertFalse(part.exists())
+
+    def test_append(self):
+        with tempfile.TemporaryDirectory() as d:
+            out, part = Path(d) / "o.jsonl", Path(d) / "o.jsonl.partial"
+            out.write_text("old\n")
+            part.write_text("new\n")
+            am.finalize_output(part, out, 1, True)
+            self.assertEqual(out.read_text(), "old\nnew\n")
+            self.assertFalse(part.exists())
+
+    def test_zero_records_leaves_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out, part = Path(d) / "o.jsonl", Path(d) / "o.jsonl.partial"
+            out.write_text("old\n")
+            part.write_text("")
+            self.assertFalse(am.finalize_output(part, out, 0, False))
+            self.assertEqual(out.read_text(), "old\n")
+            self.assertFalse(part.exists())
 
 
 if __name__ == "__main__":

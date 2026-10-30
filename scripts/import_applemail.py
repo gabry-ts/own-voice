@@ -2,7 +2,9 @@
 """Import sent mail from Apple Mail (macOS only) into own-voice JSONL records."""
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -172,6 +174,21 @@ def osa(script, *args):
     return res.stdout
 
 
+def finalize_output(partial, out, written, append):
+    """Move the partial file into place; keep the existing output when nothing was written."""
+    partial, out = Path(partial), Path(out)
+    if written <= 0:
+        partial.unlink(missing_ok=True)
+        return False
+    if append and out.exists():
+        with open(partial, "rb") as src, open(out, "ab") as dst:
+            shutil.copyfileobj(src, dst)
+        partial.unlink()
+    else:
+        os.replace(partial, out)
+    return True
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mailbox", action="append", default=[], help="extra sent mailbox name")
@@ -194,9 +211,10 @@ def main(argv=None):
         wanted |= {n.casefold() for n in SENT_NAMES}
     out = Path(args.out) if args.out else import_mbox.data_dir() / "raw" / (SOURCE + ".jsonl")
     out.parent.mkdir(parents=True, exist_ok=True)
+    partial = out.with_name(out.name + ".partial")
     seen, written, skipped, failed, dates_out = set(), 0, 0, 0, []
     rc = 0
-    with open(out, "a" if args.append else "w", encoding="utf-8") as fh:
+    with open(partial, "w", encoding="utf-8") as fh:
         try:
             boxes = [b for b in parse_mailbox_list(osa(LIST_SCRIPT)) if b[2].casefold() in wanted]
             done = False
@@ -242,11 +260,17 @@ def main(argv=None):
         except KeyboardInterrupt:
             print("interrupted, keeping records already written", file=sys.stderr)
             rc = 130
+    if rc == 1 and written:
+        print("records kept in %s" % partial, file=sys.stderr)
+        note = " (failed, records in %s)" % partial
+    else:
+        finalize_output(partial, out, written, args.append)
+        note = "" if written else " (no records, left untouched)"
     dates_out.sort()
     print("written: %d, skipped: %d, failed batches: %d, range: %s" % (
         written, skipped, failed,
         "%s to %s" % (dates_out[0], dates_out[-1]) if dates_out else "n/a"))
-    print("output: %s" % out)
+    print("output: %s%s" % (out, note))
     return rc
 
 
