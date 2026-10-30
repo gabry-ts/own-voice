@@ -101,5 +101,28 @@ class CliTests(unittest.TestCase):
             self.assertIsNone(recs[0]["date"])
 
 
+class ZeroRecordTests(unittest.TestCase):
+    def test_unmatched_me_lists_speakers_and_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "t.jsonl"
+            out.write_text("keep\n")
+            o, e = io.StringIO(), io.StringIO()
+            with redirect_stdout(o), redirect_stderr(e):
+                rc = it.main([str(CALLS), "--me", "Nobody", "--out", str(out)])
+            self.assertEqual(rc, 2)
+            self.assertIn("Sam Lee: ", o.getvalue())
+            self.assertIn("No speakers match", e.getvalue())
+            self.assertEqual(out.read_text(), "keep\n")
+
+    def test_filtered_out_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "t.jsonl"
+            out.write_text("keep\n")
+            rc, text = run([str(CALLS), "--me", "Me", "--out", str(out), "--since", "2099-01-01"])
+            self.assertEqual(rc, 0)
+            self.assertIn("left untouched", text)
+            self.assertEqual(out.read_text(), "keep\n")
+
+
 if __name__ == "__main__":
     unittest.main()

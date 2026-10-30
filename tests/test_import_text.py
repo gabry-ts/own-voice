@@ -63,12 +63,24 @@ class TextTests(unittest.TestCase):
             run([str(src), "--out", str(out), "--date", "2024-01-01"])
             self.assertEqual(len(read(out)), 2)
             run([str(src), "--out", str(out), "--date", "2024-01-01", "--since", "2024-02-01"])
-            self.assertEqual(read(out), [])
+            self.assertEqual(len(read(out)), 2)
 
     def test_bad_channel_and_missing(self):
         with self.assertRaises(SystemExit):
             run([str(FIX / "note.txt"), "--channel", "spoken"])
         self.assertEqual(run(["/nonexistent/file.txt"])[0], 1)
+
+
+class ZeroRecordTests(unittest.TestCase):
+    def test_filtered_out_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "x.jsonl"
+            out.write_text("keep\n")
+            rc, text = run([str(FIX / "note.txt"), "--out", str(out), "--date", "2024-01-01",
+                            "--since", "2099-01-01"])
+            self.assertEqual(rc, 0)
+            self.assertIn("left untouched", text)
+            self.assertEqual(out.read_text(), "keep\n")
 
 
 if __name__ == "__main__":

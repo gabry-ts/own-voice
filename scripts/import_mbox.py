@@ -265,30 +265,36 @@ def main(argv=None):
         if not Path(path).exists():
             print("not found: %s" % path, file=sys.stderr)
             return 1
-    if not args.me:
-        counts = Counter()
-        for path in args.inputs:
-            for msg in iter_messages(path):
-                counts.update(addresses(msg, "From")[:1])
-        for addr, n in counts.most_common():
-            print("%s: %d" % (addr, n))
-        print("Pass your address(es) with --me ADDRESS to import.", file=sys.stderr)
-        return 2
     me = {a.strip().lower() for a in args.me}
     records, skipped, seen = [], 0, set()
+    counts, matched = Counter(), False
     for path in args.inputs:
         for msg in iter_messages(path):
+            sender = addresses(msg, "From")
+            counts.update(sender[:1])
+            if not args.me:
+                continue
+            matched = matched or any(a in me for a in sender)
             rec, _ = build_record(msg, me, args.keep_others, since, before, seen)
             if rec:
                 records.append(rec)
             else:
                 skipped += 1
+    if not args.me or not matched:
+        for addr, n in counts.most_common():
+            print("%s: %d" % (addr, n))
+        if args.me:
+            print("No messages match --me; existing output left untouched.", file=sys.stderr)
+        else:
+            print("Pass your address(es) with --me ADDRESS to import.", file=sys.stderr)
+        return 2
     out = args.out or data_dir() / "raw" / (SOURCE + ".jsonl")
-    write_records(records, out, args.append)
+    if records:
+        write_records(records, out, args.append)
     rng = date_range(records)
     print("written: %d, skipped: %d, range: %s" % (
         len(records), skipped, "%s to %s" % rng if rng else "n/a"))
-    print("output: %s" % out)
+    print("output: %s%s" % (out, "" if records else " (no records, left untouched)"))
     return 0
 
 

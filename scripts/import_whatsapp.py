@@ -330,13 +330,18 @@ def main(argv=None):
         messages, _ = parse_chat(content, args.date_order)
         parsed.append((path, thread_src, messages))
 
-    if not args.me:
+    me_names = {n.casefold() for n in args.me}
+    matched = any(m["author"].casefold() in me_names for _, _, msgs in parsed for m in msgs)
+    if not args.me or not matched:
         for path, _, messages in parsed:
             counts = collections.Counter(m["author"] for m in messages)
             print("%s:" % path)
             for author, n in counts.most_common():
                 print("  %s: %d" % (author, n))
-        print("Pass your name(s) with --me NAME to import.", file=sys.stderr)
+        if args.me:
+            print("No messages match --me; existing output left untouched.", file=sys.stderr)
+        else:
+            print("Pass your name(s) with --me NAME to import.", file=sys.stderr)
         return 2
 
     records, skipped = [], 0
@@ -346,11 +351,12 @@ def main(argv=None):
         records.extend(recs)
         skipped += sk
     out = args.out or data_dir() / "raw" / (SOURCE + ".jsonl")
-    write_records(records, out, args.append)
+    if records:
+        write_records(records, out, args.append)
     rng = date_range(records)
     print("written: %d, skipped: %d, range: %s" % (
         len(records), skipped, "%s to %s" % rng if rng else "n/a"))
-    print("output: %s" % out)
+    print("output: %s%s" % (out, "" if records else " (no records, left untouched)"))
     return 0
 
 

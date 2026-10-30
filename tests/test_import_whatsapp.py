@@ -162,5 +162,33 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(read_jsonl(Path(d) / "raw" / "whatsapp.jsonl")), 2)
 
 
+class ZeroRecordTests(unittest.TestCase):
+    def test_unmatched_me_lists_authors_and_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "w.jsonl"
+            out.write_text("keep\n")
+            out2 = io.StringIO(), io.StringIO()
+            with redirect_stdout(out2[0]), redirect_stderr(out2[1]):
+                rc = wa.main([str(FIX / "wa_ios_en.txt"), "--me", "Nobody", "--out", str(out)])
+            self.assertEqual(rc, 2)
+            self.assertIn("Alex Rivera: ", out2[0].getvalue())
+            self.assertIn("No messages match", out2[1].getvalue())
+            self.assertEqual(out.read_text(), "keep\n")
+            missing = Path(d) / "new.jsonl"
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                wa.main([str(FIX / "wa_ios_en.txt"), "--me", "Nobody", "--out", str(missing)])
+            self.assertFalse(missing.exists())
+
+    def test_filtered_out_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "w.jsonl"
+            out.write_text("keep\n")
+            rc, text = run([str(FIX / "wa_ios_en.txt"), "--me", "Alex Rivera", "--out", str(out),
+                            "--since", "2099-01-01"])
+            self.assertEqual(rc, 0)
+            self.assertIn("left untouched", text)
+            self.assertEqual(out.read_text(), "keep\n")
+
+
 if __name__ == "__main__":
     unittest.main()

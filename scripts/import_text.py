@@ -99,14 +99,15 @@ def main(argv=None):
             continue
         records.extend(recs)
     out = Path(args.out) if args.out else data_dir() / "raw" / (SOURCE + ".jsonl")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "a" if args.append else "w", encoding="utf-8") as fh:
-        for r in records:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    if records:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "a" if args.append else "w", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
     ds = sorted(r["date"][:10] for r in records if r["date"])
     print("written: %d, skipped: %d, range: %s" % (
         len(records), skipped, "%s to %s" % (ds[0], ds[-1]) if ds else "n/a"))
-    print("output: %s" % out)
+    print("output: %s%s" % (out, "" if records else " (no records, left untouched)"))
     return 0
 
 

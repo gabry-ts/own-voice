@@ -3,7 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -102,6 +102,30 @@ class FileTests(unittest.TestCase):
             lines = text.strip().splitlines()
             self.assertEqual(lines[0], "alex.rivera@example.com: 5")
             self.assertEqual(lines[1], "sam.lee@example.org: 1")
+
+
+class ZeroRecordTests(unittest.TestCase):
+    def test_unmatched_me_lists_addresses_and_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "m.jsonl"
+            out.write_text("keep\n")
+            o, e = io.StringIO(), io.StringIO()
+            with redirect_stdout(o), redirect_stderr(e):
+                rc = im.main([str(FIX / "sample.mbox"), "--me", "nobody@example.com", "--out", str(out)])
+            self.assertEqual(rc, 2)
+            self.assertIn(ME[0] + ": ", o.getvalue())
+            self.assertIn("No messages match", e.getvalue())
+            self.assertEqual(out.read_text(), "keep\n")
+
+    def test_filtered_out_keeps_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "m.jsonl"
+            out.write_text("keep\n")
+            rc, text = run([str(FIX / "sample.mbox"), "--me", ME[0], "--out", str(out),
+                            "--since", "2099-01-01"])
+            self.assertEqual(rc, 0)
+            self.assertIn("left untouched", text)
+            self.assertEqual(out.read_text(), "keep\n")
 
 
 if __name__ == "__main__":

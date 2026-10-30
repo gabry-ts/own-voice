@@ -223,29 +223,34 @@ def main(argv=None):
             continue
         calls.append(call)
 
-    if not args.me:
+    me = {m.casefold() for m in args.me}
+    matched = any(s.casefold() in me for call in calls for s, _ in call["turns"])
+    if not args.me or not matched:
         words = collections.Counter()
         for call in calls:
             for speaker, text in call["turns"]:
                 words[speaker] += len(text.split())
         for speaker, n in words.most_common():
             print("%s: %d words" % (speaker, n))
-        print("Pass your speaker label(s) with --me LABEL to import.", file=sys.stderr)
+        if args.me:
+            print("No speakers match --me; existing output left untouched.", file=sys.stderr)
+        else:
+            print("Pass your speaker label(s) with --me LABEL to import.", file=sys.stderr)
         return 2
 
-    me = {m.casefold() for m in args.me}
     records = []
     for call in calls:
         records.extend(build_records(call, me, args.keep_others, since, before))
     out = Path(args.out) if args.out else data_dir() / "raw" / (SOURCE + ".jsonl")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "a" if args.append else "w", encoding="utf-8") as fh:
-        for r in records:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    if records:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "a" if args.append else "w", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
     ds = sorted(r["date"][:10] for r in records if r["date"])
     print("written: %d, skipped calls: %d, range: %s" % (
         len(records), skipped_calls, "%s to %s" % (ds[0], ds[-1]) if ds else "n/a"))
-    print("output: %s" % out)
+    print("output: %s%s" % (out, "" if records else " (no records, left untouched)"))
     return 0
 
 
