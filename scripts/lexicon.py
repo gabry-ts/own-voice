@@ -56,6 +56,21 @@ def load_config(path=None):
         return {}
 
 
+def registers_error(path=None):
+    p = Path(path) if path else data_dir() / "config.json"
+    try:
+        with open(p, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except OSError:
+        return "config file not found or unreadable: {}".format(p)
+    except ValueError:
+        return "config file is not valid JSON: {}".format(p)
+    regs = cfg.get("registers") if isinstance(cfg, dict) else None
+    if not regs:
+        return "config file defines no registers: {}".format(p)
+    return None
+
+
 def register_of(rec, cfg):
     regs = cfg.get("registers") or []
     thread = rec.get("thread")
@@ -188,7 +203,16 @@ def md_count(result):
     return "\n".join(lines)
 
 
+def check_registers(args):
+    err = registers_error(args.config) if args.by == "register" else None
+    if err:
+        print("error: {}".format(err), file=sys.stderr)
+    return err
+
+
 def cmd_count(args):
+    if check_registers(args):
+        return 2
     result = count_terms(load_corpus(args.corpus), load_terms(args.terms), args.by,
                          load_config(args.config), args.accent_insensitive)
     print(md_count(result) if args.format == "markdown" else json.dumps(result, ensure_ascii=False, indent=2))
@@ -196,6 +220,8 @@ def cmd_count(args):
 
 
 def cmd_top(args):
+    if check_registers(args):
+        return 2
     result = top_phrases(load_corpus(args.corpus), args.by, load_config(args.config), args.n,
                          args.ngram, args.min_count, args.accent_insensitive)
     if args.format == "markdown":

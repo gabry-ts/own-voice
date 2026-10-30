@@ -2,7 +2,8 @@ import io
 import json
 import sys
 import unittest
-from contextlib import redirect_stdout
+import tempfile
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -22,6 +23,18 @@ def run(argv):
 
 
 class LexiconTests(unittest.TestCase):
+    def test_register_grouping_needs_registers(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "c.json"
+            cfg.write_text('{"registers": []}')
+            for missing in (str(cfg), str(Path(d) / "missing.json")):
+                for argv in (["count", "--terms", TERMS], ["top"]):
+                    err = io.StringIO()
+                    with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                        code = lexicon.main(argv + ["--corpus", CORPUS, "--by", "register", "--config", missing])
+                    self.assertEqual(code, 2)
+                    self.assertIn("config", err.getvalue())
+
     def test_terms_skip_comments(self):
         self.assertNotIn("# black list", lexicon.load_terms(TERMS))
 
