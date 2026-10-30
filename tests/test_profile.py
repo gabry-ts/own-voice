@@ -3,7 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -19,6 +19,22 @@ def run(argv):
     with redirect_stdout(buf):
         code = prof.main(argv)
     return code, buf.getvalue()
+
+
+def run_err(argv):
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        code = prof.main(argv)
+    return code, out.getvalue(), err.getvalue()
+
+
+def write_jsonl(path, texts, date="2024-01-01"):
+    rows = [{"source": "t", "channel": "spoken", "date": date, "thread": "call", "text": t} for t in texts]
+    Path(path).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def texts_of(path):
+    return [r["text"] for r in prof.load_corpus([path])]
 
 
 class ProfileTests(unittest.TestCase):
@@ -111,6 +127,77 @@ class ProfileTests(unittest.TestCase):
             _, text = run(["filter", str(new), "--dedup-against", CORPUS, "--out", out])
             self.assertEqual([r["text"] for r in prof.load_corpus([out])], ["fresh"])
             self.assertIn("dropped by duplicate: 12", text)
+
+    def test_dedup_keeps_repeats_within_a_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            a, out = str(Path(d) / "a.jsonl"), str(Path(d) / "o.jsonl")
+            write_jsonl(a, ["ok"] * 10 + ["bye"])
+            _, text = run(["filter", a, "--dedup", "--out", out])
+            self.assertEqual(texts_of(out), ["ok"] * 10 + ["bye"])
+            self.assertIn("dropped by duplicate: 0", text)
+
+    def test_dedup_overlapping_files_collapse(self):
+        with tempfile.TemporaryDirectory() as d:
+            a, b, out = (str(Path(d) / n) for n in ("a.jsonl", "b.jsonl", "o.jsonl"))
+            write_jsonl(a, ["ok", "ok", "x"])
+            write_jsonl(b, ["ok", "ok", "ok", "y"])
+            run(["filter", a, b, "--dedup", "--out", out])
+            self.assertEqual(texts_of(out), ["ok", "ok", "x", "ok", "y"])
+            run(["filter", a, a, "--dedup", "--out", out])
+            self.assertEqual(texts_of(out), ["ok", "ok", "x"])
+
+    def test_dedup_against_sums_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            a, b, new, out = (str(Path(d) / n) for n in ("a.jsonl", "b.jsonl", "n.jsonl", "o.jsonl"))
+            write_jsonl(a, ["ok"])
+            write_jsonl(b, ["ok", "z"])
+            write_jsonl(new, ["ok", "ok", "ok", "z", "w"])
+            run(["filter", new, "--dedup-against", a, b, "--out", out])
+            self.assertEqual(texts_of(out), ["ok", "w"])
+
+    def test_dedup_against_same_as_out_is_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            first, new = str(Path(d) / "first.jsonl"), str(Path(d) / "n.jsonl")
+            write_jsonl(first, ["ok", "ok"])
+            write_jsonl(new, ["ok", "ok", "more"])
+            code, _, err = run_err(["filter", new, "--dedup-against", first, "--out", first])
+            self.assertEqual(code, 0)
+            self.assertIn("ignoring --dedup-against", err)
+            self.assertEqual(texts_of(first), ["ok", "ok", "more"])
+
+    def test_filter_empty_result_keeps_existing_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            a, out = str(Path(d) / "a.jsonl"), str(Path(d) / "o.jsonl")
+            write_jsonl(a, ["ok"])
+            write_jsonl(out, ["keep me"])
+            code, _, err = run_err(["filter", a, "--dedup-against", a, "--out", out])
+            self.assertEqual(code, 1)
+            self.assertIn("not overwriting", err)
+            self.assertEqual(texts_of(out), ["keep me"])
+            Path(out).write_text("")
+            code, _, _ = run_err(["filter", a, "--dedup-against", a, "--out", out])
+            self.assertEqual(code, 0)
+
+    def test_drop_threads_missing_file_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = str(Path(d) / "o.jsonl")
+            for value in ("nope/threads.txt", "threads.txt"):
+                code, _, err = run_err(["filter", CORPUS, "--drop-threads", value, "--out", out])
+                self.assertEqual(code, 2)
+                self.assertIn("not found", err)
+            self.assertFalse(Path(out).exists())
+
+    def test_measure_by_register_needs_registers(self):
+        with tempfile.TemporaryDirectory() as d:
+            empty, bad = Path(d) / "e.json", Path(d) / "b.json"
+            empty.write_text('{"registers": []}')
+            bad.write_text("{nope")
+            for cfg in (str(empty), str(bad), str(Path(d) / "missing.json")):
+                code, _, err = run_err(["measure", CORPUS, "--config", cfg])
+                self.assertEqual(code, 2)
+                self.assertIn("config", err)
+            code, _, _ = run_err(["measure", CORPUS, "--config", str(empty), "--group-by", "none"])
+            self.assertEqual(code, 0)
 
     def test_threads(self):
         code, out = run(["threads", CORPUS])

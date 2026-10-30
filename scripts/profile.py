@@ -49,20 +49,26 @@ def data_dir():
     return Path(os.environ.get("OWN_VOICE_DIR", Path.home() / ".own-voice")).expanduser()
 
 
+def load_file(path):
+    records = []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(rec, dict) and isinstance(rec.get("text"), str):
+                records.append(rec)
+    return records
+
+
 def load_corpus(paths):
     records = []
     for p in paths:
-        with open(p, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(rec, dict) and isinstance(rec.get("text"), str):
-                    records.append(rec)
+        records.extend(load_file(p))
     return records
 
 
@@ -74,6 +80,21 @@ def load_config(path=None):
         return cfg if isinstance(cfg, dict) else {}
     except (OSError, ValueError):
         return {}
+
+
+def registers_error(path=None):
+    p = Path(path) if path else data_dir() / "config.json"
+    try:
+        with open(p, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except OSError:
+        return "config file not found or unreadable: {}".format(p)
+    except ValueError:
+        return "config file is not valid JSON: {}".format(p)
+    regs = cfg.get("registers") if isinstance(cfg, dict) else None
+    if not regs:
+        return "config file defines no registers: {}".format(p)
+    return None
 
 
 def register_of(rec, cfg):
@@ -288,6 +309,11 @@ def render_md(title, data, level=1):
 
 
 def cmd_measure(args):
+    if args.group_by == "register":
+        err = registers_error(args.config)
+        if err:
+            print("error: {}".format(err), file=sys.stderr)
+            return 2
     cfg = load_config(args.config)
     records = own(load_corpus(args.corpus))
     stop = load_stopwords(args.stopwords)
@@ -417,12 +443,16 @@ def load_thread_names(value):
     return {x.strip() for x in items if x.strip()}
 
 
+def looks_like_path(value):
+    return "/" in value or os.sep in value or value.lower().endswith(".txt")
+
+
 def dedup_key(r):
     return (r.get("source"), r.get("channel"), r.get("date"), r.get("thread"), r.get("text"))
 
 
 def cmd_filter(args):
-    records = load_corpus(args.corpus)
+    out = Path(args.out)
     drop = set()
     if args.drop_indexes:
         try:
@@ -431,16 +461,28 @@ def cmd_filter(args):
             print("error: --drop-indexes must be comma separated integers", file=sys.stderr)
             return 2
     channels = {c.strip() for c in args.channels.split(",") if c.strip()} if args.channels else None
+    if args.drop_threads and looks_like_path(args.drop_threads) \
+            and not Path(args.drop_threads).expanduser().is_file():
+        print("error: --drop-threads file not found: {}".format(args.drop_threads), file=sys.stderr)
+        return 2
     threads = load_thread_names(args.drop_threads) if args.drop_threads else set()
     dedup = args.dedup or bool(args.dedup_against)
-    seen = {dedup_key(r) for r in load_corpus(args.dedup_against or [])}
+    seen = Counter()
+    out_resolved = out.resolve()
+    for p in args.dedup_against or []:
+        if Path(p).resolve() == out_resolved:
+            print("note: ignoring --dedup-against {} (same as --out)".format(p), file=sys.stderr)
+            continue
+        seen.update(dedup_key(r) for r in load_file(p))
     dropped = Counter()
-    kept = 0
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", encoding="utf-8") as fh:
-        for idx, r in enumerate(records):
-            if idx in drop:
+    kept = []
+    total = idx = 0
+    for path in args.corpus:
+        local = Counter()
+        for r in load_file(path):
+            i, idx = idx, idx + 1
+            total += 1
+            if i in drop:
                 dropped["index"] += 1
                 continue
             if args.before:
@@ -453,13 +495,21 @@ def cmd_filter(args):
                 continue
             if dedup:
                 key = dedup_key(r)
-                if key in seen:
+                local[key] += 1
+                if local[key] <= seen[key]:
                     dropped["duplicate"] += 1
                     continue
-                seen.add(key)
+            kept.append(r)
+        for key, n in local.items():
+            seen[key] = max(seen[key], n)
+    if not kept and out.exists() and out.stat().st_size > 0:
+        print("error: no records left, not overwriting existing {}".format(out), file=sys.stderr)
+        return 1
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in kept:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-            kept += 1
-    print("kept {} of {} records -> {}".format(kept, len(records), out))
+    print("kept {} of {} records -> {}".format(len(kept), total, out))
     for reason in ("index", "before", "thread", "duplicate"):
         print("dropped by {}: {}".format(reason, dropped[reason]))
     return 0
@@ -529,7 +579,7 @@ def build_parser():
     f.add_argument("--channels", help="comma separated; default all channels")
     f.add_argument("--drop-threads", help="comma separated thread names, or a file with one per line")
     f.add_argument("--dedup", action="store_true",
-                   help="drop records identical to an earlier one (source, channel, date, thread, text)")
+                   help="drop records already seen in an earlier input file (source, channel, date, thread, text); repeats within one file are kept")
     f.add_argument("--dedup-against", nargs="+", metavar="FILE",
                    help="files used only as already-seen records, not written (implies --dedup)")
     f.add_argument("--out", required=True)
