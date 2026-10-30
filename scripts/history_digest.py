@@ -170,7 +170,12 @@ def collect(claude_dir, since=None):
 def render_session(s, max_chars):
     proj = redact(home_short(s["project"]))
     span = "{} -> {}".format(iso_day(s["start"]) or "?", iso_day(s["end"]) or "?")
-    head = ["## {} | {} | {}".format(redact(s["id"])[:8], proj, span),
+    if s["source"] == "history":
+        label = "history {} {}".format(redact(Path(s["project"]).name) if s["project"] else "(unknown)",
+                                       iso_day(s["start"]) or "undated")
+    else:
+        label = redact(s["id"])[:8]
+    head = ["## {} | {} | {}".format(label, proj, span),
             "prompts: {} | source: {}".format(len(s["prompts"]), s["source"])]
     if s["tools"]:
         head.append("tools: " + ", ".join("{} {}".format(k, v) for k, v in s["tools"].most_common()))

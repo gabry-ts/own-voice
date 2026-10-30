@@ -80,5 +80,14 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(hd.main(["--claude-dir", "/nonexistent/zzz"]), 2)
 
 
+class HeaderTests(unittest.TestCase):
+    def test_history_header_is_clean(self):
+        hist = [s for s in hd.collect(CLAUDE) if s["source"] == "history"][0]
+        head, _ = hd.render_session(hist, 400)
+        self.assertTrue(head[0].startswith("## history blog 2023-11-14 | "), head[0])
+        real = [s for s in hd.collect(CLAUDE) if s["source"] != "history"][0]
+        self.assertRegex(hd.render_session(real, 400)[0][0], r"^## \S{1,8} \| ")
+
+
 if __name__ == "__main__":
     unittest.main()
