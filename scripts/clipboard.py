@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Copy text to the system clipboard on macOS, Windows, WSL and Linux.
 
-Reads stdin or --file as raw bytes and copies it unchanged. The command used is
-printed to stderr.
+Reads stdin or --file as raw bytes and copies it unchanged, except for one final
+newline (a shell heredoc always adds one). The command used is printed to stderr.
 """
 import argparse
 import os
@@ -57,15 +57,27 @@ def copy(text):
     return argv[0]
 
 
+def strip_final_newline(raw):
+    if raw.endswith(b"\r\n"):
+        return raw[:-2]
+    if raw.endswith(b"\n"):
+        return raw[:-1]
+    return raw
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--file", help="read text from this file instead of stdin")
+    ap.add_argument("--keep-final-newline", action="store_true",
+                    help="do not remove the single trailing newline")
     args = ap.parse_args(argv)
     if args.file:
         with open(args.file, "rb") as fh:
             raw = fh.read()
     else:
         raw = sys.stdin.buffer.read()
+    if not args.keep_final_newline:
+        raw = strip_final_newline(raw)
     try:
         used = copy(raw.decode("utf-8"))
     except (RuntimeError, UnicodeDecodeError) as exc:

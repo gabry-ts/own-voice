@@ -58,7 +58,26 @@ class CopyTests(unittest.TestCase):
             p.write_bytes("riga\n\n".encode())
             with mock.patch.object(clipboard, "copy", return_value="pbcopy") as cp:
                 self.assertEqual(clipboard.main(["--file", str(p)]), 0)
+                cp.assert_called_once_with("riga\n")
+                cp.reset_mock()
+                self.assertEqual(clipboard.main(["--file", str(p), "--keep-final-newline"]), 0)
                 cp.assert_called_once_with("riga\n\n")
+
+    def test_strip_final_newline(self):
+        f = clipboard.strip_final_newline
+        self.assertEqual(f(b"a\nb\n"), b"a\nb")
+        self.assertEqual(f(b"a\r\n"), b"a")
+        self.assertEqual(f(b"a\n\n"), b"a\n")
+        self.assertEqual(f(b"a"), b"a")
+        self.assertEqual(f(b""), b"")
+
+    def test_cli_stdin(self):
+        stdin = mock.Mock()
+        stdin.buffer.read.return_value = "x\ny\n".encode()
+        with mock.patch.object(clipboard.sys, "stdin", stdin), \
+                mock.patch.object(clipboard, "copy", return_value="pbcopy") as cp:
+            self.assertEqual(clipboard.main([]), 0)
+            cp.assert_called_once_with("x\ny")
 
     def test_cli_error(self):
         with tempfile.TemporaryDirectory() as d:
