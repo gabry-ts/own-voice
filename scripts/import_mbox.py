@@ -8,6 +8,7 @@ import mailbox
 import os
 import re
 import sys
+from collections import Counter
 from datetime import date, datetime
 from email.header import decode_header, make_header
 from email.utils import getaddresses, parsedate_to_datetime
@@ -249,7 +250,7 @@ def date_range(records):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("inputs", nargs="+", help=".mbox/.eml files or directories")
-    ap.add_argument("--me", action="append", required=True, help="your address (repeatable)")
+    ap.add_argument("--me", action="append", default=[], help="your address (repeatable)")
     ap.add_argument("--keep-others", action="store_true")
     ap.add_argument("--out")
     ap.add_argument("--append", action="store_true")
@@ -260,12 +261,22 @@ def main(argv=None):
         since, before = parse_day(args.since), parse_day(args.before)
     except ValueError:
         ap.error("--since/--before must be ISO dates (YYYY-MM-DD)")
-    me = {a.strip().lower() for a in args.me}
-    records, skipped, seen = [], 0, set()
     for path in args.inputs:
         if not Path(path).exists():
             print("not found: %s" % path, file=sys.stderr)
             return 1
+    if not args.me:
+        counts = Counter()
+        for path in args.inputs:
+            for msg in iter_messages(path):
+                counts.update(addresses(msg, "From")[:1])
+        for addr, n in counts.most_common():
+            print("%s: %d" % (addr, n))
+        print("Pass your address(es) with --me ADDRESS to import.", file=sys.stderr)
+        return 2
+    me = {a.strip().lower() for a in args.me}
+    records, skipped, seen = [], 0, set()
+    for path in args.inputs:
         for msg in iter_messages(path):
             rec, _ = build_record(msg, me, args.keep_others, since, before, seen)
             if rec:

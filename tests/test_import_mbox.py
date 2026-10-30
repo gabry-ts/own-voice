@@ -93,6 +93,16 @@ class FileTests(unittest.TestCase):
             lines = [json.loads(l) for l in out.read_text(encoding="utf-8").splitlines()]
             self.assertEqual([l["is_me"] for l in lines].count(False), 1)
 
+    def test_cli_without_me_lists_senders(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "m.jsonl"
+            rc, text = run([str(FIX), "--out", str(out)])
+            self.assertEqual(rc, 2)
+            self.assertFalse(out.exists())
+            lines = text.strip().splitlines()
+            self.assertEqual(lines[0], "alex.rivera@example.com: 5")
+            self.assertEqual(lines[1], "sam.lee@example.org: 1")
+
 
 if __name__ == "__main__":
     unittest.main()
